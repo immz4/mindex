@@ -7,6 +7,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/immz4/mindex/scraper"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/redis/go-redis/v9"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 	"resty.dev/v3"
@@ -32,19 +33,28 @@ func main() {
 			Username: "default",
 		},
 	})
+	defer chDb.Close()
 
 	// password leak!! oh no...
 	pgDb, err := sql.Open("pgx", "postgres://immz:dev123@localhost:5432/mindex")
-
 	if err != nil {
 		log.Fatalln("Unable to open PG connection", err)
 	}
+	defer pgDb.Close()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     "127.0.0.1:6379",
+		Password: "",
+		DB:       0,
+	})
+	defer rdb.Close()
 
 	activities := &scraper.ScraperActivities{
-		UserAgent:  "MindexBot",
-		HTTPClient: httpClient,
-		CHClient:   chDb,
-		PGClient:   pgDb,
+		UserAgent:   "MindexBot",
+		HTTPClient:  httpClient,
+		CHClient:    chDb,
+		PGClient:    pgDb,
+		RedisClient: rdb,
 	}
 
 	w.RegisterWorkflow(scraper.GetEntityRobots)

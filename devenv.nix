@@ -21,6 +21,18 @@
     enable = true;
   };
 
+  # services.clickhouse = {
+  #   enable = true;
+  #   config = ''
+  #     cgroups_memory_usage_observer_wait_time: 0
+  #   '';
+  # };
+
+  services.redis = {
+    enable = true;
+    # bind = "localhost";
+  };
+
   services.postgres = {
     enable = true;
     listen_addresses = "localhost";

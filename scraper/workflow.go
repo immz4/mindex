@@ -82,8 +82,8 @@ func GetEntitySitemap(ctx workflow.Context, args GetEntitySitemapArgs) error {
 
 	var scraperActivities *ScraperActivities
 
-	var sitemaps *SitemapRes
-	err := workflow.ExecuteActivity(ctx, scraperActivities.GetSitemap, args.Url).Get(ctx, &sitemaps)
+	var sitemapRes SitemapRes
+	err := workflow.ExecuteActivity(ctx, scraperActivities.GetSitemap, args.Url).Get(ctx, &sitemapRes)
 	if err != nil {
 		return fmt.Errorf("Failed to get sitemaps: %s", err)
 	}
@@ -95,65 +95,34 @@ func GetEntitySitemap(ctx workflow.Context, args GetEntitySitemapArgs) error {
 		uploadID = *args.UploadID
 	}
 
-	if len(sitemaps.Index) > 0 {
-		data := make([]SaveSitemapIndexArgs, 0, len(sitemaps.Index))
+	var originID *uuid.UUID
+	if args.OriginID == nil {
+		originID = nil
+	} else {
+		UUID := uuid.Must(uuid.Parse(*args.OriginID))
+		originID = &UUID
+	}
 
-		for _, v := range sitemaps.Index {
-			var originID *uuid.UUID
+	data := SaveSitemapArgs{
+		UploadID: uuid.Must(uuid.Parse(uploadID)),
+		EntityID: uuid.Must(uuid.Parse(args.EntityID)),
+		RobotsID: uuid.Must(uuid.Parse(args.RobotsID)),
+		OriginID: originID,
+		SaveID:   sitemapRes.SaveID,
+	}
 
-			if args.OriginID == nil {
-				originID = nil
-			} else {
-				UUID := uuid.Must(uuid.Parse(*args.OriginID))
-				originID = &UUID
-			}
-
-			data = append(data, SaveSitemapIndexArgs{
-				UploadID:     uuid.Must(uuid.Parse(uploadID)),
-				EntityID:     uuid.Must(uuid.Parse(args.EntityID)),
-				RobotsID:     uuid.Must(uuid.Parse(args.RobotsID)),
-				OriginID:     originID,
-				Url:          v.Location,
-				LastModified: time.UnixMilli(*v.LastModified),
-			})
-		}
-
+	if sitemapRes.Type == "index" {
 		err = workflow.ExecuteActivity(ctx, scraperActivities.SaveSitemapIndex, data).Get(ctx, nil)
-	}
 
-	if err != nil {
-		return fmt.Errorf("Failed to save sitemap index to table: %s", err)
-	}
-
-	if len(sitemaps.Urlset) > 0 {
-		data := make([]SaveSitemapUrlsetArgs, 0, len(sitemaps.Urlset))
-
-		for _, v := range sitemaps.Urlset {
-			var originID *uuid.UUID
-
-			if args.OriginID == nil {
-				originID = nil
-			} else {
-				UUID := uuid.Must(uuid.Parse(*args.OriginID))
-				originID = &UUID
-			}
-
-			data = append(data, SaveSitemapUrlsetArgs{
-				UploadID:     uuid.Must(uuid.Parse(uploadID)),
-				EntityID:     uuid.Must(uuid.Parse(args.EntityID)),
-				RobotsID:     uuid.Must(uuid.Parse(args.RobotsID)),
-				OriginID:     originID,
-				Url:          v.Location,
-				LastModified: time.UnixMilli(*v.LastModified),
-				ChangeFreq:   &v.ChangeFrequency,
-			})
+		if err != nil {
+			return fmt.Errorf("Failed to save sitemap index to table: %s", err)
 		}
-
+	} else if sitemapRes.Type == "urlset" {
 		err = workflow.ExecuteActivity(ctx, scraperActivities.SaveSitemapUrlset, data).Get(ctx, nil)
-	}
 
-	if err != nil {
-		return fmt.Errorf("Failed to save sitemap urlset to table: %s", err)
+		if err != nil {
+			return fmt.Errorf("Failed to save sitemap urlset to table: %s", err)
+		}
 	}
 
 	return nil
